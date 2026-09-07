@@ -217,23 +217,44 @@ On successful bind to `config.port`, three timers are created on the uWS event l
 | License reload | 30,000 ms | `s->license.try_reload(*s)` | Hot-reload `keys.json`, kick peers with revoked keys |
 | Signaling cleanup | 120,000 ms | `cleanup_stale_signaling(*s)` | Remove HTTP signaling entries older than 180s |
 | Guest idle | 60,000 ms | Iterate `guest_sockets`, close idle guests | Disconnect guests with >30 min no binary activity |
-| Shutdown check | 1,000 ms | Check `should_shutdown` atomic | Close listen socket on SIGINT/SIGTERM |
+| Offline buffer sweep | 300,000 ms | `sweep_offline_buffer`, link codes, link guesses, reports save | TTL expiry of every RAM buffer |
+| Shutdown check | 1,000 ms | Check `should_shutdown` atomic | Snapshot, then close timers + every socket (see below) |
 
-Timer state pointers are stored via `us_timer_ext()` — each timer gets a `sizeof(RelayState*)` or `sizeof(void*)` block to hold a pointer to the state or listen socket.
+Timer state pointers are stored via `us_timer_ext()`; the three periodic timers are also recorded in `g_shutdown.timers` so the shutdown tick can close them.
 
 ### main.cpp:cleanup_stale_signaling()
 
 Iterates all `signaling_rooms`, removes `PeerEntry` records where `now - last_seen >= 180` seconds. Deletes empty rooms from the map.
 
-### Graceful shutdown
+### Graceful shutdown (rewritten 2026-09-07)
 
-When `should_shutdown` is true (from SIGINT/SIGTERM):
-1. The shutdown timer closes the listen socket via `us_listen_socket_close()`.
-2. The timer closes itself.
-3. `app.run()` returns when the event loop drains.
-4. Process exits cleanly.
+When `should_shutdown` is true (from SIGINT/SIGTERM), the 1 s shutdown tick, on the loop thread with every buffer intact:
+1. `snapshot_to_fdstore(state)` (see `snapshot.cpp` below).
+2. Closes the three periodic timers and itself.
+3. `app.close()`: the listen socket plus every connection (`us_socket_context_close` on the HTTP and WS contexts). Close handlers run `cleanup_peer` as usual; the snapshot was taken first because they mutate state.
+4. `app.run()` returns, reports are saved, the process exits. Measured 0.7 to 1.8 s.
+
+Until 2026-09-07 step 3 closed only the listen socket. The timers (`fallthrough=0`, counted in `num_polls`) and every open socket kept `us_loop_run` alive, so every restart was a 90 s brownout for new connections ending in systemd's SIGKILL (`State 'stop-sigterm' timed out. Killing.`), and `reports.save_if_dirty()` after `run()` never ran.
 
 Fatal: if the port bind fails, the process calls `exit(1)` immediately.
+
+## snapshot.cpp / snapshot_codec.h / sd_fdstore.h — Restart persistence (2026-09-07)
+
+Everything the relay holds is RAM. A service restart used to empty it: three days of offline DM frames, the topic rings, and every offline phone's push token (RAM-only, never erased on disconnect, re-sent only on app launch). Now the state that an OFFLINE peer cannot re-send rides systemd's file descriptor store across the restart. Memory `project_relay_restart_persistence` has the decisions; this is the shape.
+
+**What is in the snapshot:** `offline_buffer` (room, frame, sender, age, is_image, is_channel, seq), `offline_optin`, `topic_buffers` (key, accepting, retention_secs, registered age, frames), `push_tokens`, `push_prefs`. Not: rooms and sockets, nickname and link-code claims (relay-scoped by design), push debounce counters, `device_list_max_version`, the two files.
+
+**`snapshot_codec.h`** (header-only, no uWS, unit test `test/test_snapshot_codec.cpp`): `snapshot::Data` plus `encode`/`decode`. Magic `HRSN`, `VERSION`, five counted sections, trailer `HRSE`; little-endian fixed-width ints, u32-length strings capped at 64 MB, flags must be 0/1, a count larger than the remaining bytes is refused. `decode` is all-or-nothing: any truncation, bad byte or foreign version returns false and leaves the output untouched. Timestamps travel as AGES in seconds; the reader rebuilds `at = now - age`.
+
+**`sd_fdstore.h`** (header-only): `store(fd, name)` sends `FDSTORE=1\nFDNAME=name` with the fd as SCM_RIGHTS over `NOTIFY_SOCKET` (abstract `@` paths handled); `remove(name)` sends `FDSTOREREMOVE=1`; `take(name)` parses `LISTEN_PID`/`LISTEN_FDS`/`LISTEN_FDNAMES`, marks every passed fd close-on-exec, closes the ones not taken, clears the variables. No libsystemd (its dev package is not on the box).
+
+**`snapshot.cpp`:** `snapshot_to_fdstore` = capture → encode → `memfd_create` → write → `remove` (a stale entry would make the store refuse) → `store` → count-only log line. `restore_from_fdstore` (called in `main` before `listen`) = `take` → `remove` BEFORE parsing (a crashing reader cannot loop on the same snapshot) → `lseek(0)` (the store's dup shares the writer's offset) → read → decode → apply → `sweep_offline_buffer` (what aged out in the gap) → `enforce_buffer_budget` (new export of `evict_over_budget`). `apply` places frames first, then re-stamps the OfflineIndex in ascending old-seq order, DM and topic interleaved, and recomputes `buffer_total_bytes` and each ring's `bytes`.
+
+**Unit requirements** (`deploy/hollow-relay.service` and the box): `NotifyAccess=main`, `FileDescriptorStoreMax=1` (without both systemd drops the datagram), `LimitCORE=0`. `FileDescriptorStorePreserve` stays at its default `restart`: the store survives restarts and is cleared on a full `stop`. Host: NO swap (a 2 GB swapfile was live until 2026-09-07) and apport disabled, because the heap and the memfd are ordinary pageable memory and a core dump is the heap on disk. Docker: no fd store, the handoff no-ops.
+
+**Rules:** a new RAM registry an offline peer cannot re-send joins the codec (bump `VERSION`; an old snapshot is then discarded whole, which is intended). Snapshot BEFORE `app.close()`. Log counts, never keys. Memory peak at shutdown ≈ 3x buffered bytes, at restore ≈ 2x; stream-encode from state before a multi-GB budget.
+
+**Proof:** `scripts/fleet_relay_restart.ps1` (two real instances; b closed, a sends a DM and a channel message and closes, relay restarted with nobody connected, b returns alone and sees both). Journal at that restart: `handed to the fd store: 6 DM frames in 2 queues, 4 topic frames in 2 rings, 2 opt-ins` and `restored ... 10 frames live after expiry`.
 
 ---
 

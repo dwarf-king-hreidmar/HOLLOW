@@ -1,6 +1,6 @@
 # Hollow: Terms of Use
 
-**Last updated: August 28, 2026**
+**Last updated: September 7, 2026**
 
 These Terms of Use ("Terms") govern your access to and use of the Hollow application and related services ("Services") provided by AnonListen ("we", "us", "our"). By using Hollow, you agree to these Terms.
 
@@ -40,7 +40,7 @@ You agree to use Hollow only for lawful purposes and in a manner consistent with
 
 You own the content you create and share through Hollow. We do not claim any rights to your content.
 
-Because Hollow uses end-to-end encryption, **we cannot access, review, moderate, or remove the content of your messages, calls, or files.** Our Services have been designed using a privacy-by-design approach, which means it is technically impossible for us to analyze or monitor the content you create, send, or receive through Hollow.
+Because Hollow uses end-to-end encryption, **we cannot access, review, moderate, or remove the content of your messages, calls, or files.** This is a property of the design. It is technically impossible for us to analyze or monitor what you create, send, or receive through Hollow.
 
 ### Server moderation
 
@@ -50,13 +50,13 @@ Individual Hollow servers are created and managed by their owners. Server owners
 
 If you become aware of any use of Hollow that violates these Terms, you may report it to us at **privacy@anonlisten.com**. Hollow also includes in-app tools: you can block users (stored only on your device) and report users. Reports are transmitted anonymously and stored only as aggregate counters per reported account. No message content is or can be included, and we never learn who filed a report.
 
-Due to the encrypted nature of the platform, our ability to investigate reports is limited, but we take all reports seriously and will take action where technically possible. Where reports or other signals indicate violations of these Terms, we may take the actions available to us at the infrastructure level, such as revoking access to our hosted relay.
+Due to the encrypted nature of the platform, our ability to investigate reports is limited. Where reports or other signals indicate violations of these Terms, we may take the actions available to us at the infrastructure level, such as revoking access to our hosted relay.
 
 ## 6. Software ownership and your rights
 
 Hollow is open-source software. The client application and core library are licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. The relay server is licensed under the **MIT License**. The full license texts are available in the source repository.
 
-For commercial use without AGPL obligations (proprietary modifications, embedding, or enterprise deployments), a separate commercial license is available: contact **collab@anonlisten.com**.
+For commercial use without AGPL obligations (proprietary modifications, embedding, or enterprise deployments), a separate commercial license is available. Contact **collab@anonlisten.com**.
 
 The Hollow name, trademarks, logos, and associated branding are the property of AnonListen (Vitalii Rovinskyi) and are not covered by the open-source licenses.
 
@@ -80,7 +80,7 @@ We will make reasonable efforts to maintain service availability but do not guar
 
 ### Fair use limits
 
-To keep the shared relay infrastructure available to everyone, we apply technical fair-use measures per IP address. These currently include caps on simultaneous connections and on the rate of new connections, and fair sharing of the relay's network capacity whenever it is saturated, so that no single connection can crowd out others. There is no data volume quota: you are never disconnected for the amount of data you transfer, and none of these measures affect your account, your keys, or your data. In practice, ordinary messaging uses a negligible amount of relay capacity, and voice and video calls and large file transfers are designed to travel peer-to-peer. The relay's TURN service carries traffic only between Hollow clients; it cannot be used to reach other hosts. We may adjust these measures over time to preserve service quality.
+To keep the shared relay infrastructure available to everyone, we apply technical fair-use measures per IP address. These currently include caps on simultaneous connections and on the rate of new connections, and fair sharing of the relay's network capacity whenever it is saturated, so that no single connection can crowd out others. There is no data volume quota, so you are never disconnected for the amount of data you transfer, and none of these measures affect your account, your keys, or your data. In practice, ordinary messaging uses a negligible amount of relay capacity, and voice and video calls and large file transfers are designed to travel peer-to-peer. The relay's TURN service carries traffic only between Hollow clients; it cannot be used to reach other hosts. We may adjust these measures over time to preserve service quality.
 
 During limited-access phases, access to our hosted relay may additionally require an access key, which we may revoke for violations of these Terms. Revocation or disconnection applies only to our hosted infrastructure, never to your copy of the application, your identity, or your data. You are always free to self-host your own relay; the software is open source.
 
@@ -125,7 +125,7 @@ Hollow's relay infrastructure operates as a "mere conduit" within the meaning of
 - Does not select the receiver of the transmission
 - Does not select or modify the information contained in the transmission
 
-Where the relay temporarily holds encrypted payloads in memory to complete delivery to offline recipients, this storage is automatic, intermediate, and transient: it occurs solely to carry out the transmission requested by the sender, the payloads remain end-to-end encrypted and unreadable to us, and they are deleted upon delivery or upon expiry of a short retention window.
+Where the relay temporarily holds encrypted payloads in memory to complete delivery to offline recipients, this storage is automatic, intermediate, and transient. It occurs solely to carry out the transmission requested by the sender, the payloads remain end-to-end encrypted and unreadable to us, and they are deleted upon delivery or upon expiry of a short retention window.
 
 All content passing through the relay is end-to-end encrypted and opaque to us.
 

@@ -4,15 +4,25 @@
 #include <csignal>
 #include <atomic>
 #include <cstdio>
+#include <vector>
 
 #include "config.h"
 #include "state.h"
 #include "crypto.h"
 #include "http_handlers.h"
+#include "snapshot.h"
 #include "ws_handler.h"
 
 static std::atomic<bool> should_shutdown{false};
-static struct us_listen_socket_t* global_listen_socket = nullptr;
+
+// What the shutdown tick needs to end the process: the snapshot goes out
+// first, then every loop handle closes so run() actually returns.
+struct ShutdownCtx {
+    RelayState* state = nullptr;
+    uWS::SSLApp* app = nullptr;
+    std::vector<struct us_timer_t*> timers;
+};
+static ShutdownCtx g_shutdown;
 
 static void signal_handler(int /*sig*/) {
     should_shutdown.store(true);
@@ -37,6 +47,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "[main] No keys file, license system disabled\n");
     }
     state.reports.load_from_file(config.reports_file);
+    restore_from_fdstore(state);
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -59,9 +70,11 @@ int main(int argc, char** argv) {
     setup_ws_handler(app, state, config);
     setup_http_handlers(app, state, config);
 
+    g_shutdown.state = &state;
+    g_shutdown.app = &app;
+
     app.listen(config.port, [&](auto* listen_socket) {
         if (listen_socket) {
-            global_listen_socket = listen_socket;
             fprintf(stderr, "[main] Listening on port %d (TLS)\n", config.port);
 
             auto* loop = reinterpret_cast<struct us_loop_t*>(uWS::Loop::get());
@@ -73,6 +86,7 @@ int main(int argc, char** argv) {
                 auto* s = *reinterpret_cast<RelayState**>(us_timer_ext(t));
                 s->license.try_reload(*s);
             }, 30000, 30000);
+            g_shutdown.timers.push_back(license_timer);
 
             // The 120s signaling-room cleanup timer is GONE with the HTTP
             // /register + /bootstrap table it swept (see http_handlers.cpp).
@@ -96,6 +110,7 @@ int main(int argc, char** argv) {
                     ws->end(1008, "guest_idle");
                 }
             }, 60000, 60000);
+            g_shutdown.timers.push_back(guest_timer);
 
             // Offline message buffer TTL sweep (300s)
             auto* buffer_timer = us_create_timer(loop, 0, sizeof(RelayState*));
@@ -107,17 +122,23 @@ int main(int argc, char** argv) {
                 sweep_link_guesses(*s);
                 s->reports.save_if_dirty();
             }, 300000, 300000);
+            g_shutdown.timers.push_back(buffer_timer);
 
-            // Shutdown check timer (1s)
+            // Shutdown check timer (1s). The snapshot goes out while every
+            // buffer is still intact; then the timers and app.close() (listen
+            // socket plus every connection) release the loop. Closing only
+            // the listen socket, as this once did, left the loop alive on the
+            // timers and the open sockets until systemd's stop timeout killed
+            // the process.
             auto* shutdown_timer = us_create_timer(loop, 0, sizeof(void*));
-            *reinterpret_cast<struct us_listen_socket_t**>(us_timer_ext(shutdown_timer)) = listen_socket;
             us_timer_set(shutdown_timer, [](struct us_timer_t* t) {
-                if (should_shutdown.load()) {
-                    auto* ls = *reinterpret_cast<struct us_listen_socket_t**>(us_timer_ext(t));
-                    us_listen_socket_close(1, ls);
-                    us_timer_close(t);
-                    fprintf(stderr, "[main] Shutting down...\n");
-                }
+                if (!should_shutdown.load()) return;
+                fprintf(stderr, "[main] Shutting down...\n");
+                snapshot_to_fdstore(*g_shutdown.state);
+                for (auto* pt : g_shutdown.timers) us_timer_close(pt);
+                g_shutdown.timers.clear();
+                us_timer_close(t);
+                g_shutdown.app->close();
             }, 1000, 1000);
         } else {
             fprintf(stderr, "[main] FATAL: Failed to listen on port %d\n", config.port);

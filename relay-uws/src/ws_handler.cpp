@@ -822,6 +822,10 @@ static void evict_over_budget(RelayState& state) {
     }
 }
 
+void enforce_buffer_budget(RelayState& state) {
+    evict_over_budget(state);
+}
+
 // Free every frame `sender` has pending at its FIRST-TOUCHED target, so the
 // sender's key count drops by one. This is the fair-share half of RELAY-1: a
 // sender past its own share loses its OWN oldest conversation and nobody

@@ -29,6 +29,8 @@ EnvironmentFile=-/home/ubuntu/forwarder/forwarder.env
 Restart=always
 RestartSec=3
 LimitNOFILE=65536
+# No core dumps: a crash must not write in-flight media frames to disk.
+LimitCORE=0
 
 [Install]
 WantedBy=multi-user.target

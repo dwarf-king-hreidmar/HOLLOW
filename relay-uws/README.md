@@ -1,28 +1,28 @@
 # Hollow Relay
 
-High-performance WebSocket relay and signaling server for **Hollow** — a fully distributed, encrypted communication platform.
+High-performance WebSocket relay and signaling server for **Hollow**, a fully distributed, encrypted communication platform.
 
 Built with [uWebSockets](https://github.com/uNetworking/uWebSockets) (C++) for maximum connection density. A single $8/month VPS handles **~572,000 concurrent connections** at 13.4 KB per connection with native TLS.
 
 ## Documentation
 
-- **[BENCHMARK.md](BENCHMARK.md)** — Stress test results: 44,600 simultaneous connections with per-connection memory analysis and capacity projections.
-- **[WHITEPAPER.md](../WHITEPAPER.md)** — Full Hollow protocol specification: cryptographic architecture, networking model, threat model, and security properties.
+- **[BENCHMARK.md](BENCHMARK.md)**: stress test results, 44,600 simultaneous connections with per-connection memory analysis and capacity projections.
+- **[WHITEPAPER.md](../WHITEPAPER.md)**: the full Hollow protocol specification, cryptographic architecture, networking model, threat model, and security properties.
 
 ## What the relay does
 
-The relay is a lightweight, stateless message router. It does **not** store messages, decrypt content, or hold user data. All it does is:
+The relay is a lightweight message router. It keeps nothing on disk, cannot decrypt content, and holds no user data beyond ciphertext waiting for an offline peer (see [Restart persistence](#restart-persistence)). All it does is:
 
-- **WebSocket rooms** — peers join named rooms and exchange end-to-end encrypted messages through the relay. The relay forwards opaque blobs; it cannot read them.
-- **Binary protocol** — `0x01` for room broadcasts, `0x02` for targeted peer-to-peer delivery, `0x03`/`0x04` for bandwidth-optimized message broadcast/direct (25-42% savings vs JSON), `0x07`/`0x08` for topic-routed channel messages (per-channel pub/sub). The relay rewrites target fields to sender fields on forwarding.
-- **Signaling HTTP** — bootstrap peer discovery (`/register`, `/unregister`, `/bootstrap/{room}`) with Ed25519-signed requests.
-- **TURN credential generation** — time-limited HMAC-SHA1 credentials for NAT traversal via coturn (`/turn-credentials`).
-- **License key gating** — optional closed-beta access control via a `keys.json` file, with 30-second hot-reload and active connection revocation.
-- **Server stats** — live memory, bandwidth, and online user count via `/server-stats` (reads `/proc` on Linux).
+- **WebSocket rooms**: peers join named rooms and exchange end-to-end encrypted messages through the relay. The relay forwards opaque blobs; it cannot read them.
+- **Binary protocol**: `0x01` for room broadcasts, `0x02` for targeted peer-to-peer delivery, `0x03`/`0x04` for bandwidth-optimized message broadcast/direct (25-42% savings vs JSON), `0x07`/`0x08` for topic-routed channel messages (per-channel pub/sub). The relay rewrites target fields to sender fields on forwarding.
+- **Offline delivery buffers**: ciphertext for peers who are away, in RAM only, deleted on delivery or expiry.
+- **TURN credential generation**: time-limited HMAC-SHA1 credentials for NAT traversal via coturn (`/turn-credentials`).
+- **License key gating**: optional closed-beta access control via a `keys.json` file, with 30-second hot-reload and active connection revocation.
+- **Server stats**: live memory, bandwidth, and online user count via `/server-stats` (reads `/proc` on Linux).
 
 ## Performance
 
-Measured on an OVH VPS (4 vCPU / 8 GB RAM; 400 Mbps at measurement time, 1 Gbps since 2026-08-04 — the connection figures are RAM-bound and unaffected). Verified with 44,600 simultaneous authenticated WebSocket connections — see [BENCHMARK.md](BENCHMARK.md) for full methodology and data.
+Measured on an OVH VPS (4 vCPU / 8 GB RAM; 400 Mbps at measurement time, 1 Gbps since 2026-08-04; the connection figures are RAM-bound and unaffected). Verified with 44,600 simultaneous authenticated WebSocket connections. See [BENCHMARK.md](BENCHMARK.md) for full methodology and data.
 
 | Metric | Value |
 |---|---|
@@ -40,12 +40,38 @@ Key: `SSL_MODE_RELEASE_BUFFERS` frees OpenSSL's 16 KB read/write buffers between
 ## Security properties
 
 - All WebSocket authentication uses **Ed25519 signature verification** with 60-second timestamp skew protection.
-- **Native TLS** via OpenSSL (TLS 1.3, AES-256-GCM) — no reverse proxy needed.
-- **Backpressure handling** — 64 MB hard ceiling (`.maxBackpressure`). No soft cap or message dropping — removed because it silently broke CRDT sync. Dead connections are caught by the hard limit. Clients auto-resync via CRDT/gossip if messages are lost.
-- **Payload limits** — 64 MB max payload (`maxPayloadLength`). Text frame 1 MB size cap. Per-peer room cap (10,000 rooms). No binary rate limiting — authenticated peers are trusted; Ed25519 auth + license key revocation is the DoS defense model.
-- **Room membership enforcement** — peers cannot send to rooms they haven't joined.
+- **Native TLS** via OpenSSL (TLS 1.3, AES-256-GCM), no reverse proxy needed.
+- **Backpressure handling**: 64 MB hard ceiling (`.maxBackpressure`). No soft cap or message dropping, which was removed because it silently broke CRDT sync. Dead connections are caught by the hard limit. Clients auto-resync via CRDT/gossip if messages are lost.
+- **Payload limits**: 64 MB max payload (`maxPayloadLength`). Text frame 1 MB size cap. Per-peer room cap (10,000 rooms). No binary rate limiting; authenticated peers are trusted, and Ed25519 auth plus license key revocation is the DoS defense model.
+- **Room membership enforcement**: peers cannot send to rooms they haven't joined.
 - **Inbox mailbox ownership proof**: a friend request for an offline stranger is buffered under their MASTER id, which no socket ever authenticates as. A device reads that mailbox only by carrying its master-signed device list as `inbox_proof` on the `inbox:{master}` join. Four things must all hold: the signature verifies, the public key derives to the claimed master id, the joining device is still listed and not revoked, and the room is that master's own inbox. A failed proof replays nothing and answers nothing. A read never consumes the mailbox, so every sibling device collects the request once, and the relay records nothing about who deposited or read what.
 - TURN credentials are time-limited (1 hour TTL) and derived from an environment variable (`TURN_SECRET`), never hardcoded.
+
+## Restart persistence
+
+Everything the relay holds is RAM: the offline DM buffers, the per-channel topic rings, the opt-in retention registrations, push tokens and push preferences. Until 2026-09-07 all of it ended with the process, so every deploy emptied up to three days of undelivered messages and dropped every offline phone's push token.
+
+Now, on SIGTERM, the relay serialises that state into an anonymous memory file (`memfd_create`) and hands the descriptor to systemd's file descriptor store. systemd holds it across the restart and passes it back to the next process, which restores the buffers, drops the descriptor from the store, expires whatever aged out in the gap, and only then listens. Memory to memory, never a file: a full `systemctl stop` clears the store, and a reboot or power loss loses everything, which is the privacy promise.
+
+The unit needs two lines or systemd silently drops the handoff (`deploy/hollow-relay.service` has them):
+
+```ini
+NotifyAccess=main
+FileDescriptorStoreMax=1
+```
+
+Two more things on the host keep "never on disk" literally true, because the relay's heap and the handed-over memory are both ordinary pageable memory:
+
+- **No swap.** A swapfile lets the kernel page relay memory, ciphertext and peer ids included, onto the SSD. The production box runs with none.
+- **No core dumps.** `LimitCORE=0` on the unit (and apport disabled on the host), or a crash writes the whole heap to disk.
+
+Under Docker there is no fd store, so the handoff no-ops and buffers end with the container. The codec has its own unit test:
+
+```bash
+cd test && g++ -std=c++17 -I../src test_snapshot_codec.cpp -o test_snapshot_codec && ./test_snapshot_codec
+```
+
+A side effect worth knowing: the relay now exits cleanly. It used to close only its listen socket on SIGTERM, and the periodic timers plus every open connection kept the event loop alive until systemd's 90-second stop timeout killed it, so a restart was a 90-second brownout for new connections. It is now well under a second.
 
 ## Building
 
@@ -119,7 +145,7 @@ The file is hot-reloaded every 30 seconds. Removing a key revokes the active con
 
 ## Deployment
 
-The relay terminates TLS natively — no Nginx or reverse proxy needed:
+The relay terminates TLS natively, so no Nginx or reverse proxy is needed:
 
 ```
 Client (WSS :443) --> hollow-relay (TLS via OpenSSL)
@@ -131,7 +157,7 @@ Grant the binary permission to bind port 443 without root:
 sudo setcap cap_net_bind_service=+ep ./build/hollow-relay
 ```
 
-A sample systemd service file is provided in `deploy/hollow-relay.service`.
+A sample systemd service file is provided in `deploy/hollow-relay.service`. Keep its `NotifyAccess`, `FileDescriptorStoreMax` and `LimitCORE` lines (see [Restart persistence](#restart-persistence)).
 
 For certificate renewal, use certbot with a deploy hook:
 
@@ -145,13 +171,18 @@ systemctl restart hollow-relay
 
 ```
 src/
-  main.cpp           Entry point, CLI parsing, timer setup
+  main.cpp           Entry point, CLI parsing, timer setup, shutdown
   config.h           Config struct
   state.h            All shared state (single-threaded, no locks)
   crypto.h/.cpp      Ed25519 (libsodium), HMAC-SHA1 (OpenSSL), base64
   license.h/.cpp     License key load/validate/hot-reload/revocation
-  http_handlers.h/.cpp  7 HTTP endpoints
+  http_handlers.h/.cpp  HTTP endpoints
   ws_handler.h/.cpp  WebSocket auth, room routing, binary protocol
+  offline_index.h    Fair-share eviction index over the offline buffers
+  snapshot_codec.h   Wire form of the restart snapshot (unit tested)
+  snapshot.h/.cpp    Snapshot capture/restore against RelayState
+  sd_fdstore.h       systemd fd store handoff (hand-rolled sd_notify)
+  validate.h         Peer-id and room-code shape checks
   json.hpp           nlohmann/json (vendored single-header)
 ```
 
@@ -159,4 +190,4 @@ The relay is single-threaded by design. uWebSockets' epoll event loop handles al
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

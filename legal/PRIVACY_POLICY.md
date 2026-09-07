@@ -1,6 +1,6 @@
 # Hollow: Privacy Policy
 
-**Last updated: August 28, 2026**
+**Last updated: September 7, 2026**
 
 Hollow is built on one principle: your conversations are yours. We cannot read your messages, listen to your calls, or identify you. This policy explains what data exists, where it exists, and what we can and cannot access.
 
@@ -33,11 +33,11 @@ Hollow uses a WebSocket relay server for signaling and message routing. The rela
 - Room membership for active connections (held in memory only, lost on restart)
 - Temporary display nicknames, if you claim one (held in memory only, released when you disconnect)
 
-**Offline delivery (in-memory, encrypted).** To deliver messages sent while you are offline, the relay can hold end-to-end encrypted payloads in memory for a limited time: 3 days by default. You can adjust or disable this for your own messages in Settings, and server owners can disable it for their channels. These buffers contain only ciphertext the relay cannot read, are subject to small volume caps, are deleted on delivery or expiry, are never written to disk, and are lost if the relay restarts. The buffer is a convenience, not a requirement. If the relay never held a message, you still receive it directly from your peers when you are both online.
+**Offline delivery (in-memory, encrypted).** To deliver messages sent while you are offline, the relay can hold end-to-end encrypted payloads in memory for a limited time, 3 days by default. You can adjust or disable this for your own messages in Settings, and server owners can disable it for their channels. These buffers contain only ciphertext the relay cannot read, are subject to small volume caps, and are deleted on delivery or expiry. They exist only in the relay's memory. When we update the relay software, the running process hands them to its replacement in memory, so an update does not lose them. They are never written to disk, and they are gone if the server reboots or loses power. The server runs without swap and without crash dumps, so its memory cannot spill onto its disk. The buffer is a convenience, not a requirement. If the relay never held a message, you still receive it directly from your peers when you are both online.
 
 **Fair-use accounting (in-memory).** To keep the relay usable for everyone, it keeps per-IP-address counters in memory: the number of simultaneous connections and the rate of new connections. There is no data volume counter. These counters exist only in memory, are never written to disk or to logs, and are lost on restart. When the relay's network link is saturated, capacity is shared fairly between client addresses by the operating system's network queue; this involves no per-user accounting and records nothing.
 
-**Push notification tokens (mobile).** If you use Hollow on Android or iOS, the relay holds your device's push token in memory only (never on disk) so it can send a wake signal when a message arrives while the app is closed. See "Push notifications (mobile)" below.
+**Push notification tokens (mobile).** If you use Hollow on Android or iOS, the relay holds your device's push token in memory only (never on disk) so it can send a wake signal when a message arrives while the app is closed. It is carried across relay updates the same way as the buffers above and is gone when the server reboots. See "Push notifications (mobile)" below.
 
 **What the relay does NOT have access to:**
 
@@ -49,7 +49,7 @@ Hollow uses a WebSocket relay server for signaling and message routing. The rela
 
 ## TURN relay server
 
-For voice and video calls where a direct peer-to-peer connection cannot be established (e.g., due to restrictive network configurations), encrypted media may be relayed through a TURN server. The TURN server handles only encrypted data and cannot decrypt call content. The TURN server is configured with logging disabled: no session metadata, IP addresses, or bandwidth data is recorded.
+For voice and video calls where a direct peer-to-peer connection cannot be established (e.g., due to restrictive network configurations), encrypted media may be relayed through a TURN server. The TURN server handles only encrypted data and cannot decrypt call content. It runs with logging disabled, so no session metadata, IP addresses, or bandwidth data is recorded.
 
 ## Push notifications (mobile)
 
@@ -68,7 +68,7 @@ Desktop platforms do not use any push service. Notifications on desktop are gene
 
 ## Infrastructure and hosting
 
-Our relay infrastructure is hosted by OVHcloud SAS (France), subject to EU jurisdiction and GDPR. OVH operates our servers as opaque workloads: they do not inspect, analyze, or store the content passing through them.
+Our relay infrastructure is hosted by OVHcloud SAS (France), subject to EU jurisdiction and GDPR. OVH operates our servers as opaque workloads. They do not inspect, analyze, or store the content passing through them.
 
 **What our hosting provider can see:**
 
@@ -99,11 +99,11 @@ If you add game cards to your profile showcase, your game search queries are sen
 
 ## Emote and GIF search (optional)
 
-Hollow's emote picker can search the FrankerFaceZ emote catalog, and its GIF picker searches the KLIPY GIF library. Both searches go through our web server, which acts as a caching proxy: your device never contacts FrankerFaceZ, KLIPY, or their content networks directly, and these lookups happen only while you are actively browsing a picker. Search terms travel in the request body rather than the URL, so they do not appear in standard web-server access logs, and the request carries no Hollow identity; a search can never be linked to your account. Our server keeps an anonymous cache of search terms and results (never who searched, or from where) so repeated searches are served without contacting the provider at all. The requests our server does forward to KLIPY carry a freshly generated random identifier each time, stored nowhere. KLIPY sees an unlinkable stream of queries coming from our server, never your IP address or search history. The proxy's source code is published in the Hollow repository, so these claims are auditable.
+Hollow's emote picker can search the FrankerFaceZ emote catalog, and its GIF picker searches the KLIPY GIF library. Both searches go through our web server, which acts as a caching proxy. Your device never contacts FrankerFaceZ, KLIPY, or their content networks directly, and these lookups happen only while you are actively browsing a picker. The same rules as the game searches above apply. Search terms travel in the request body, the request carries no Hollow identity, and our server keeps an anonymous cache of terms and results so repeated searches never reach the provider. The requests our server does forward to KLIPY carry a freshly generated random identifier each time, stored nowhere. KLIPY sees an unlinkable stream of queries coming from our server, never your IP address or search history. The proxy's source code is published in the Hollow repository, so these claims are auditable.
 
 When you pick an emote or GIF, your device downloads the image once through the same proxy and re-encodes it locally; from then on it travels inside your end-to-end encrypted messages like any other media. People who receive your messages never contact our web server, FrankerFaceZ, or KLIPY; receiving a message triggers no network request to anyone.
 
-**Using your own KLIPY API key.** Settings › Network lets you enter your own KLIPY API key, which turns off the proxy for GIF search: your device then contacts KLIPY and its content network directly. If you do that, KLIPY sees your IP address and your searches, tied together by your key. We describe this in the setting itself, because it is a trade rather than an upgrade. It is off by default and nothing about it changes the rule above: a picked GIF is still re-encoded locally and still travels as encrypted bytes, and people who receive your messages still make no network requests. The same applies if you point Hollow at your own self-hosted copy of the proxy.
+**Using your own KLIPY API key.** Settings › Network lets you enter your own KLIPY API key, which turns off the proxy for GIF search. Your device then contacts KLIPY and its content network directly, and KLIPY sees your IP address and your searches, tied together by your key. We describe this in the setting itself, because it is a trade rather than an upgrade. It is off by default and nothing about it changes the rule above: a picked GIF is still re-encoded locally and still travels as encrypted bytes, and people who receive your messages still make no network requests. The same applies if you point Hollow at your own self-hosted copy of the proxy.
 
 ## Link previews
 
@@ -115,11 +115,9 @@ When you type or paste a web link into the message box, your device fetches that
 
 **Turning it off, or adding a hop.** Settings › Network › Link Previews turns previews off entirely. With it off, your device never touches a pasted link, and the strongest version of this section is that nothing happens. The same section lets you route those X and TikTok lookups through a service of your choosing if you would rather the upstream never saw your address; it is empty by default, which means direct.
 
-**Videos.** A preview card for a video post shows a play button. Tapping it either plays the video in place, which downloads it from the host, or opens the page in your browser. Either way it happens only because you tapped it: nothing about a video card loads or plays on its own, and the play button can only ever reach the address the sender's own app found, because that address is covered by the message's signature.
+**Videos.** A preview card for a video post shows a play button. Tapping it either plays the video in place, which downloads it from the host, or opens the page in your browser. Either way it happens only because you tapped it. Nothing about a video card loads or plays on its own, and the play button can only ever reach the address the sender's own app found, because that address is covered by the message's signature.
 
 ## Law enforcement and government requests
-
-We are committed to transparency about any requests we receive.
 
 Because Hollow is designed with privacy by design, our ability to respond to data requests is inherently limited:
 

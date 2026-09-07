@@ -55,15 +55,15 @@
 
 ## Overview
 
-Hollow is a fully distributed, end-to-end encrypted communication software. There are no central servers that store your messages or files. Members of a server collectively host it. The relay is a zero-knowledge signaling pipe that forwards encrypted blobs between peers without any ability to read, modify, or store them.
+Hollow is fully distributed, end-to-end encrypted communication software. There are no central servers that store your messages or files. Members of a server collectively host it. The relay is a zero-knowledge signaling pipe that forwards encrypted blobs between peers. It cannot read or modify them, and it keeps nothing on disk.
 
-Your identity is a cryptographic keypair. Zero registrations. One recovery phrase or export of your identity into .hollow file, and you own your account forever.
+Your identity is a cryptographic keypair. Zero registrations. One recovery phrase, or an export of your identity into a .hollow file, and you own your account forever.
 
 ## Features
 
 - **End-to-end encrypted messaging**: Olm (Double Ratchet) for DMs, OpenMLS for servers. Forward secrecy by default
 - **Multi-device**: link your phone and desktop into one identity with a short code. Messages, servers, and friends stay in sync end-to-end encrypted across your devices, and a lost device can be revoked remotely at any time
-- **Offline delivery without servers**: messages sent while you're away are waiting when you come back. The relay buffers only ciphertext with a short expiry; nothing readable is ever stored anywhere
+- **Offline delivery without servers**: messages sent while you're away are waiting when you come back. The relay holds only ciphertext, in memory and never on disk, with a short expiry
 - **Encrypted voice and video calls**: peer-to-peer WebRTC with SFrame (AES-128-GCM)
 - **Voice that sounds right**: on-device noise suppression (RNNoise, with DeepFilterNet3 on desktop), automatic loudness leveling, fullband Opus. No cloud processing ever touches your audio
 - **Screen sharing that stays sharp**: a custom-tuned WebRTC engine encodes screens as screen content rather than webcam video, so text stays readable. AV1/VP9, with resolution, framerate and content profiles. Works on all five platforms, both sending and receiving, encrypted with the same SFrame pipeline. Share audio travels on its own encrypted music-grade Opus stream (with per-app capture on Windows and Linux) instead of the voice-call path, so game or music audio arrives crisp instead of call-quality mushy
@@ -106,7 +106,7 @@ Current Progress: No comments, honestly. Way too much for my own sanity, but ton
 
 ## Self-Hosting
 
-Hollow supports self-hosted relays for fully isolated networks, so only connected users in it can communicate between each other without the official network.
+Hollow supports self-hosted relays for fully isolated networks. Only the people connected to your relay can reach each other, and the official network is not involved.
 
 ```bash
 cd relay-uws
@@ -272,7 +272,7 @@ The Hollow name, logo, and branding are trademarks of AnonListen and are not cov
 
 ## Support the Project
 
-Hollow is funded by the community, not by selling your data. Every support is appreciated!
+Hollow is funded by the community, not by selling your data. Any support is appreciated.
 
 - [Ko-fi](https://ko-fi.com/anonlisten)
 - [Patreon](https://patreon.com/anonlisten)

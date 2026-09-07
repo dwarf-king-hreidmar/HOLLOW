@@ -24,6 +24,7 @@ add_executable(hollow-relay
     src/license.cpp
     src/reports.cpp
     src/http_handlers.cpp
+    src/snapshot.cpp
     src/ws_handler.cpp
 )
 target_include_directories(hollow-relay PRIVATE
