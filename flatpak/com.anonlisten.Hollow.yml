@@ -16,7 +16,9 @@ finish-args:
   - --device=all
   # File access (downloads, file transfers)
   - --filesystem=xdg-download
-  # Home directory for ~/.hollow data
+  # Real home: the single-instance lock and crash log live at ~/Hollow, and
+  # file pickers browse it. The data root itself is the sandbox's own
+  # ~/.var/app/com.anonlisten.Hollow/data/hollow.
   - --filesystem=home
   # Session bus. The runner is a GtkApplication with an application-id
   # (D-Bus-unique so hollow:// deep links reach the running instance), so

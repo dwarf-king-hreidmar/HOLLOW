@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:hollow/src/core/app_relaunch.dart';
 import 'package:hollow/src/core/hollow_data_dir.dart';
 import 'package:hollow/src/core/profile_registry.dart';
+import 'package:hollow/src/core/single_instance_lock.dart';
 import 'package:hollow/src/rust/api/identity.dart' as identity_api;
 import 'package:hollow/src/rust/api/storage.dart' as storage_api;
 import 'package:hollow/src/theme/hollow_spacing.dart';
@@ -69,26 +70,9 @@ class _ProfileLocationsCardState extends State<ProfileLocationsCard> {
     return markers.any((m) => File('$path$sep$m').existsSync());
   }
 
-  /// True if another live Hollow instance holds this profile's lock, by the
-  /// same PID and process-name check as the boot single-instance guard.
-  bool _profileInUse(String path) {
-    try {
-      final lock = File('$path${Platform.pathSeparator}hollow.lock');
-      if (!lock.existsSync()) return false;
-      final lockPid = int.tryParse(lock.readAsStringSync().trim());
-      if (lockPid == null || lockPid == pid) return false;
-      if (Platform.isWindows) {
-        final r = Process.runSync('tasklist', ['/FI', 'PID eq $lockPid', '/NH']);
-        final out = r.stdout.toString().toLowerCase();
-        return out.contains('$lockPid') && out.contains('hollow');
-      }
-      final r = Process.runSync('ps', ['-p', '$lockPid', '-o', 'comm=']);
-      return r.exitCode == 0 &&
-          r.stdout.toString().toLowerCase().contains('hollow');
-    } catch (_) {
-      return false;
-    }
-  }
+  /// True if another live Hollow instance holds this profile's lock.
+  bool _profileInUse(String path) =>
+      SingleInstanceLock.heldByAnotherProcess(SingleInstanceLock.fileIn(path));
 
   Future<void> _saveRegistry(ProfileRegistry next) async {
     await saveProfileRegistry(next);

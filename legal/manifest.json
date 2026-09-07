@@ -14,8 +14,8 @@
       "notes": "Call Resilience, Offline Friend Requests, Offline Server Joins, Signed Server Operations & Linux Auto-Updates",
       "sha256_windows": "a9f4400759b41fd37974ec288e3c964dfef0b2e382ce099f3dbe393c52c340f0",
       "sha256_macos": "05375b02a50533cce1155e6eb6f352330802dfea082910b716bbaebb3ec0164f",
-      "sha256_linux": "0c1493416e0dc6009d248f4bdc8405451de05d248a9887d3a9abd07bc1effd2f",
-      "sha256_linux_targz": "2e4c2639a47b11fdb9a0a1f92351b0b31def9207ce9e465ce2cd9fe377f365d5"
+      "sha256_linux": "810552c1c59bfb9ce1a24b29587340403a40c59be6013c68d1f6b95cb8985387",
+      "sha256_linux_targz": "548228aab608060eb86c6addbf95817b0489ee1ec0f847b68da9ade121f12723"
     }
   ]
 }

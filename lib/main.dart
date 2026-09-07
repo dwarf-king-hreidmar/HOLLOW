@@ -23,6 +23,7 @@ import 'package:hollow/src/core/shop_availability.dart';
 import 'package:hollow/src/ui/app.dart';
 import 'package:hollow/src/ui/components/hollow_toast.dart';
 import 'package:hollow/src/core/hollow_data_dir.dart';
+import 'package:hollow/src/core/single_instance_lock.dart';
 import 'package:hollow/src/core/services/ios_data_dir_migration.dart';
 import 'package:hollow/src/ui/shader_warmup.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -30,9 +31,6 @@ import 'package:window_manager/window_manager.dart';
 
 /// Global provider container, used by the window and tray listeners.
 late final ProviderContainer _container;
-
-/// Lock file path: one running process per data root.
-late final String _lockFilePath;
 
 /// True when this is the only instance, so it is safe to proceed.
 bool _acquireSingleInstanceLock() {
@@ -50,58 +48,7 @@ bool _acquireSingleInstanceLock() {
         '.';
     lockDir = '$appDataDir${sep}Hollow';
   }
-  _lockFilePath = '$lockDir${sep}hollow.lock';
-
-  final dir = Directory(lockDir);
-  if (!dir.existsSync()) {
-    dir.createSync(recursive: true);
-  }
-
-  final lockFile = File(_lockFilePath);
-  if (lockFile.existsSync()) {
-    try {
-      final pidStr = lockFile.readAsStringSync().trim();
-      final pid = int.tryParse(pidStr);
-      if (pid != null && _isProcessRunning(pid)) {
-        return false;
-      }
-    } catch (_) {}
-    try {
-      lockFile.deleteSync();
-    } catch (_) {}
-  }
-
-  try {
-    lockFile.writeAsStringSync('$pid');
-  } catch (_) {}
-
-  return true;
-}
-
-/// Whether a Hollow process with [targetPid] is still running. The name check
-/// avoids a false positive from PID reuse after a crash.
-bool _isProcessRunning(int targetPid) {
-  try {
-    if (Platform.isWindows) {
-      final result = Process.runSync(
-          'tasklist', ['/FI', 'PID eq $targetPid', '/NH']);
-      final output = result.stdout.toString().toLowerCase();
-      return output.contains('$targetPid') && output.contains('hollow');
-    } else {
-      final result = Process.runSync('ps', ['-p', '$targetPid', '-o', 'comm=']);
-      return result.exitCode == 0 &&
-          result.stdout.toString().toLowerCase().contains('hollow');
-    }
-  } catch (_) {
-    return false;
-  }
-}
-
-/// Remove the lock file on exit.
-void _releaseLock() {
-  try {
-    File(_lockFilePath).deleteSync();
-  } catch (_) {}
+  return SingleInstanceLock.acquire(lockDir);
 }
 
 /// Crash log file for Flutter errors.
@@ -318,7 +265,7 @@ Future<void> _quitApp() async {
     await Future.delayed(const Duration(milliseconds: 200));
   } catch (_) {}
   await TrayService.instance.destroyIcon();
-  _releaseLock();
+  SingleInstanceLock.release();
   await windowManager.destroy();
 }
 
@@ -373,7 +320,7 @@ Future<void> _linuxQuit() async {
     await network_api.notifyShutdown();
     await Future.delayed(const Duration(milliseconds: 200));
   } catch (_) {}
-  _releaseLock();
+  SingleInstanceLock.release();
   await windowManager.destroy();
 }
 
