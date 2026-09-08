@@ -30,6 +30,7 @@ services:
     volumes:
       - certs:/etc/letsencrypt
       - certbot-www:/var/www/certbot
+      - ./deploy/cert-renewed:/renew-signal
     entrypoint:
       - sh
       - -c
@@ -52,6 +53,7 @@ services:
             chown 999:999 /etc/letsencrypt/fullchain.pem /etc/letsencrypt/privkey.pem &&
             chmod 600 /etc/letsencrypt/privkey.pem &&
             chmod 644 /etc/letsencrypt/fullchain.pem
+            touch /renew-signal/.relay-cert-renewed
         done
     restart: unless-stopped
     ports:
