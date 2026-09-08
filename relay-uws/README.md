@@ -95,9 +95,9 @@ The output is a single binary: `build/hollow-relay` (~636 KB).
 
 ### Requirements
 
-1. Create a user to run the Docker conatiner (we assume "hollow" in the examples).
+1. Create a user to run the Docker container (we assume "hollow" in the examples).
 2. Add the user to the Docker group.
-3. If you have SELINUX installed be sure persistent storage is properly
+3. If you have SELinux installed be sure persistent storage is properly
    labeled. This ensures the services running on the container can write
    to their mounted storage.
 4. Install Docker Engine with the Docker Compose Plugin.
