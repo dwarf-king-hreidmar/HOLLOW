@@ -53,6 +53,7 @@ services:
             chmod 600 /etc/letsencrypt/privkey.pem &&
             chmod 644 /etc/letsencrypt/fullchain.pem
         done
+    restart: unless-stopped
     ports:
       - "80:80"
 
