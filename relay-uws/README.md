@@ -114,7 +114,7 @@ docker compose up -d
 
 This starts the relay (TLS on 443), certbot (auto Let's Encrypt), and coturn (TURN on 3478). See `.env.example` for configuration.
 
-After the relay is up and running you can use the provided systemd unit file as a template to ensure the service starts up after reboots. See `deploy/hollow-relay-docker-compose.service`
+After the relay is up and running you can use the provided systemd unit file as a template to ensure the service starts up after reboots. See `deploy/hollow-relay-docker-compose.service` Additionally install `deploy/hollow-relay-cert-renewed.path` and `deploy/hollow-relay-cert-renewed.service` if you want to handle cert renewals gracefully. 
 
 ## Running (manual)
 
