@@ -1,6 +1,8 @@
 services:
   relay:
     build: .
+    ulimits:
+      core: 0
     ports:
       - "443:443"
     environment:
