@@ -39,23 +39,23 @@ services:
       - |
         certbot certonly --standalone --non-interactive --agree-tos \
           --email "${CERTBOT_EMAIL}" \
-          -d "${RELAY_DOMAIN}"
-
-        cp /etc/letsencrypt/live/${RELAY_DOMAIN}/fullchain.pem /etc/letsencrypt/fullchain.pem
-        cp /etc/letsencrypt/live/${RELAY_DOMAIN}/privkey.pem /etc/letsencrypt/privkey.pem
-        chown 999:999 /etc/letsencrypt/fullchain.pem /etc/letsencrypt/privkey.pem
-        chmod 600 /etc/letsencrypt/privkey.pem
-        chmod 644 /etc/letsencrypt/fullchain.pem
+          -d "${RELAY_DOMAIN}" \
+          --deploy-hook "cp /etc/letsencrypt/live/${RELAY_DOMAIN}/fullchain.pem /etc/letsencrypt/fullchain.pem && \
+        cp /etc/letsencrypt/live/${RELAY_DOMAIN}/privkey.pem /etc/letsencrypt/privkey.pem && \
+        chown 999:999 /etc/letsencrypt/fullchain.pem /etc/letsencrypt/privkey.pem && \
+        chmod 600 /etc/letsencrypt/privkey.pem && \
+        chmod 644 /etc/letsencrypt/fullchain.pem && \
+        touch /renew-signal/.relay-cert-renewed"
 
         while :; do
           sleep 12h
-          certbot renew --quiet &&
-            cp /etc/letsencrypt/live/${RELAY_DOMAIN}/fullchain.pem /etc/letsencrypt/fullchain.pem &&
-            cp /etc/letsencrypt/live/${RELAY_DOMAIN}/privkey.pem /etc/letsencrypt/privkey.pem &&
-            chown 999:999 /etc/letsencrypt/fullchain.pem /etc/letsencrypt/privkey.pem &&
-            chmod 600 /etc/letsencrypt/privkey.pem &&
-            chmod 644 /etc/letsencrypt/fullchain.pem
-            touch /renew-signal/.relay-cert-renewed
+          certbot renew --quiet \
+            --deploy-hook "cp /etc/letsencrypt/live/${RELAY_DOMAIN}/fullchain.pem /etc/letsencrypt/fullchain.pem && \
+        cp /etc/letsencrypt/live/${RELAY_DOMAIN}/privkey.pem /etc/letsencrypt/privkey.pem && \
+        chown 999:999 /etc/letsencrypt/fullchain.pem /etc/letsencrypt/privkey.pem && \
+        chmod 600 /etc/letsencrypt/privkey.pem && \
+        chmod 644 /etc/letsencrypt/fullchain.pem && \
+        touch /renew-signal/.relay-cert-renewed"
         done
     restart: unless-stopped
     ports:
