@@ -21,10 +21,10 @@ services:
      ## Uncomment below to use keys.json for license based gating.
      ## See the "License keys format" in relay-uws/README.md
      # - --keys-file
-     # - /data/keys.json
+     # - /keys/keys.json
     volumes:
       - certs:/certs:ro
-      - ./keys.json:/data/keys.json:ro
+      - ./keys:/keys:ro
     restart: unless-stopped
 
   certbot:
